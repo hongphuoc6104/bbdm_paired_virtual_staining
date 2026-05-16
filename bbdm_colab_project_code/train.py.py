@@ -58,17 +58,6 @@ def main():
         small_size=args.small_size,
         class_cond=args.class_cond,
     )
-    val_data = None
-    if args.val_hr_data_dir and args.val_lr_data_dir:
-        val_data = load_pair_superres_data(
-            args.val_hr_data_dir,
-            args.val_lr_data_dir,
-            args.batch_size,
-            large_size=args.large_size,
-            small_size=args.small_size,
-            class_cond=args.class_cond,
-            deterministic=True,
-        )
 
     # Train model
     logger.log("training...")
@@ -77,7 +66,6 @@ def main():
         model_compressor=model_compressor,
         diffusion=diffusion,
         data=data,
-        val_data=val_data,
         batch_size=args.batch_size,
         microbatch=args.microbatch,
         lr=args.lr,
@@ -96,16 +84,13 @@ def main():
     ).run_loop()
 
 
-def load_pair_superres_data(
-    hr_data_dir, lr_data_dir, batch_size, large_size, small_size, class_cond=False, deterministic=False
-):
+def load_pair_superres_data(hr_data_dir, lr_data_dir, batch_size, large_size, small_size, class_cond=False):
     data = load_paired_png_data(
         input_dir=lr_data_dir,
         target_dir=hr_data_dir,
         batch_size=batch_size,
         image_size=large_size,
         class_cond=class_cond,
-        deterministic=deterministic,
     )
     for large_batch, small_batch, model_kwargs in data:
         yield large_batch, small_batch, model_kwargs
@@ -113,10 +98,8 @@ def load_pair_superres_data(
 
 def create_argparser():
     defaults = dict(
-        lr_data_dir="./train/input", # training input data directory
-        hr_data_dir="./train/target", # training target data directory
-        val_lr_data_dir="", # validation input data directory
-        val_hr_data_dir="", # validation target data directory
+        lr_data_dir="./test/input", # training input data directory
+        hr_data_dir="./test/target", # training target data directory
         schedule_sampler="uniform",
         lr=1e-4, # learning rate
         weight_decay=0.0, # weight decay

@@ -239,7 +239,7 @@ def load_paired_png_data(
         dataset,
         batch_size=batch_size,
         shuffle=not deterministic,
-        num_workers=0,
+        num_workers=4,
         drop_last=True,
     )
     while True:

@@ -40,7 +40,6 @@ class TrainLoop:
         model_compressor,
         diffusion,
         data,
-        val_data=None,
         batch_size,
         microbatch,
         lr,
@@ -61,7 +60,6 @@ class TrainLoop:
         self.model_compression = model_compressor
         self.diffusion = diffusion
         self.data = data
-        self.val_data = val_data
         self.batch_size = batch_size
         self.microbatch = microbatch if microbatch > 0 else batch_size
         self.lr = lr
@@ -111,7 +109,7 @@ class TrainLoop:
                 copy.deepcopy(self.master_params) for _ in range(len(self.ema_rate))
             ]
 
-        if th.cuda.is_available() and dist.get_world_size() > 1:
+        if th.cuda.is_available():
             self.use_ddp = True
             self.ddp_model = DDP(
                 self.model,
@@ -178,7 +176,8 @@ class TrainLoop:
                     ema_checkpoint.replace('.pt','_compress.pt'), map_location=dist_util.dev()
                 )
                 ema_params_compress = self._state_dict_to_master_params_compress(state_dict_compress)
-                ema_params = ema_params + ema_params_compress
+        
+        ema_params = ema_params + ema_params_compress
 
         dist_util.sync_params(ema_params)
         
@@ -213,8 +212,7 @@ class TrainLoop:
             if self.step % self.log_interval == 0:
                 logger.dumpkvs()
             if self.step % self.val_interval == 0 and self.step > 0:
-                val_source = self.val_data if self.val_data is not None else self.data
-                batch, cond, kwargs = next(val_source)
+                batch, cond, kwargs = next(self.data)
                 self.val_step(batch, cond, kwargs)
             if self.step % self.save_interval == 0 and self.step > 0:
                 self.save()
@@ -238,7 +236,6 @@ class TrainLoop:
         self.model.eval()
         self.model_compression.eval()
 
-        raw_cond = cond.detach().clone()
         cond = cond.to(dist_util.dev())
         kwargs = {k: v.to(dist_util.dev()) for k, v in kwargs.items()}
         with th.no_grad():
@@ -260,16 +257,10 @@ class TrainLoop:
         batch = ((batch +1) * 127.5).clamp(0, 255).to(th.uint8)
         batch = batch.permute(0, 2, 3, 1).squeeze(-1)
         batch = batch.contiguous().cpu().numpy()
-        raw_cond = raw_cond[:, 0].contiguous().cpu().numpy()
         self.model.train()
 
         for i in range(self.batch_size):
-            cond_min = raw_cond[i].min()
-            cond_max = raw_cond[i].max()
-            raw_cond_img = (raw_cond[i] - cond_min) / (cond_max - cond_min + 1e-6)
-            raw_cond_img = (raw_cond_img * 255).astype(np.uint8)
-            plt.imsave(os.path.join(self.log_dir, '%d_LR.png'%i), raw_cond_img, cmap='gray', vmin=0, vmax=255)
-            plt.imsave(os.path.join(self.log_dir, '%d_COND_ENCODED.png'%i), cond[i])
+            plt.imsave(os.path.join(self.log_dir, '%d_LR.png'%i), cond[i])
             plt.imsave(os.path.join(self.log_dir, '%d_SR.png'%i), sample[i])
             plt.imsave(os.path.join(self.log_dir, '%d_HR.png'%i), batch[i])
 
@@ -407,10 +398,10 @@ class TrainLoop:
                 list(self.model.parameters()) + list(self.model_compression.parameters()), master_params
             )
         state_dict = self.model_compression.state_dict()
-        offset = len(list(self.model.named_parameters()))
         for i, (name, _value) in enumerate(self.model_compression.named_parameters()):
             assert name in state_dict
-            state_dict[name] = master_params[offset+i]
+            # state_dict[name] = master_params[-6+i]
+            state_dict[name] = master_params[456+i]
         return state_dict
 
     def _state_dict_to_master_params(self, state_dict):
