@@ -256,8 +256,14 @@ class TrainLoop:
                 model_kwargs=kwargs,
             )
 
-        # Convert original grayscale condition for saving (1-channel → HxW)
-        cond_raw = ((cond_raw + 1) * 127.5).clamp(0, 255).to(th.uint8)
+        # Convert original grayscale condition for saving.
+        # Input was z-score normalized: (x - mean) / std, so we use
+        # min-max rescaling to recover natural [0, 255] appearance.
+        cond_raw = cond_raw.float()
+        for b in range(cond_raw.shape[0]):
+            c = cond_raw[b]
+            cond_raw[b] = (c - c.min()) / (c.max() - c.min() + 1e-8) * 255
+        cond_raw = cond_raw.clamp(0, 255).to(th.uint8)
         cond_raw = cond_raw.permute(0, 2, 3, 1).cpu().numpy()  # (B, H, W, 1)
 
         sample = ((sample + 1) * 127.5).clamp(0, 255).to(th.uint8)
