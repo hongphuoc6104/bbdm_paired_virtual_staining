@@ -239,7 +239,7 @@ def load_paired_png_data(
         dataset,
         batch_size=batch_size,
         shuffle=not deterministic,
-        num_workers=0,
+        num_workers=4,
         drop_last=True,
     )
     while True:
@@ -387,8 +387,14 @@ class PairedPNGDataset(Dataset):
             crop_y = (inp.shape[0] - self.resolution) // 2
             crop_x = (inp.shape[1] - self.resolution) // 2
         else:
-            crop_y = np.random.randint(0, inp.shape[0] - self.resolution + 1)
-            crop_x = np.random.randint(0, inp.shape[1] - self.resolution + 1)
+            # Retry cropping to avoid near-white (blank) patches.
+            # A crop with target mean pixel >= 230 is considered blank tissue.
+            for attempt in range(6):
+                crop_y = np.random.randint(0, inp.shape[0] - self.resolution + 1)
+                crop_x = np.random.randint(0, inp.shape[1] - self.resolution + 1)
+                tag_crop = tag[crop_y : crop_y + self.resolution, crop_x : crop_x + self.resolution, :]
+                if np.mean(tag_crop) < 230 or attempt >= 5:
+                    break
 
         inp_copy = inp[crop_y : crop_y + self.resolution, crop_x : crop_x + self.resolution]
         tag_copy = tag[crop_y : crop_y + self.resolution, crop_x : crop_x + self.resolution, :]

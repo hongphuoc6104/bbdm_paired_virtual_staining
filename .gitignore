@@ -1,0 +1,32 @@
+# Data — không track trong git
+data.zip
+data/
+patches/
+NHUOM AO/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Training outputs
+models/
+log/
+outputs_*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
