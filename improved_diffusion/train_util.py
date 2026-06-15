@@ -241,6 +241,10 @@ class TrainLoop:
 
         cond = cond.to(dist_util.dev())
         kwargs = {k: v.to(dist_util.dev()) for k, v in kwargs.items()}
+
+        # Save original grayscale condition before encoding
+        cond_raw = cond.clone()
+
         with th.no_grad():
             # add a compression CNN
             cond = self.model_compression(cond)
@@ -251,21 +255,24 @@ class TrainLoop:
                 # clip_denoised=True,
                 model_kwargs=kwargs,
             )
-        cond = ((cond +1) * 127.5).clamp(0, 255).to(th.uint8)
-        cond = cond.permute(0, 2, 3, 1).squeeze(-1)
-        cond = cond.contiguous().cpu().numpy()
+
+        # Convert original grayscale condition for saving (1-channel → HxW)
+        cond_raw = ((cond_raw + 1) * 127.5).clamp(0, 255).to(th.uint8)
+        cond_raw = cond_raw.permute(0, 2, 3, 1).cpu().numpy()  # (B, H, W, 1)
+
         sample = ((sample + 1) * 127.5).clamp(0, 255).to(th.uint8)
-        sample = sample.permute(0, 2, 3, 1).squeeze(-1)
-        sample = sample.contiguous().cpu().numpy()
-        batch = ((batch +1) * 127.5).clamp(0, 255).to(th.uint8)
-        batch = batch.permute(0, 2, 3, 1).squeeze(-1)
-        batch = batch.contiguous().cpu().numpy()
+        sample = sample.permute(0, 2, 3, 1).contiguous().cpu().numpy()  # (B, H, W, 3)
+
+        batch = ((batch + 1) * 127.5).clamp(0, 255).to(th.uint8)
+        batch = batch.permute(0, 2, 3, 1).contiguous().cpu().numpy()  # (B, H, W, 3)
+
         self.model.train()
 
         for i in range(self.batch_size):
-            plt.imsave(os.path.join(self.log_dir, '%d_LR.png'%i), cond[i])
-            plt.imsave(os.path.join(self.log_dir, '%d_SR.png'%i), sample[i])
-            plt.imsave(os.path.join(self.log_dir, '%d_HR.png'%i), batch[i])
+            # Save grayscale input as gray image
+            plt.imsave(os.path.join(self.log_dir, '%d_LR.png' % i), cond_raw[i].squeeze(-1), cmap='gray')
+            plt.imsave(os.path.join(self.log_dir, '%d_SR.png' % i), sample[i])
+            plt.imsave(os.path.join(self.log_dir, '%d_HR.png' % i), batch[i])
 
     def forward_backward(self, batch, cond, kwargs):
         zero_grad(self.model_params)
